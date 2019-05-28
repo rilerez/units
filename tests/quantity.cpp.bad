@@ -1,0 +1,5 @@
+make_quantity<si::meters>(0) + make_quantity<si::seconds>(1)
+make_quantity<si::meters>(0) + foot
+make_quantity<si::meters>(0) * foot
+meter + make_quantity<si::meters>(0.0)
+meter.cast<float> + make_quantity<si::meters>(0.0)
