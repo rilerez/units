@@ -93,15 +93,15 @@ template <class map_t>
 struct unitmap {
   map_t map;
   constexpr unitmap() = default;
-  constexpr explicit unitmap(map_t const map) : map{map} {}
+  constexpr explicit unitmap(const map_t map) : map{map} {}
   static auto constexpr is_unitmap = true;
 };
 template <class map1, class map2>
-constexpr auto operator==(unitmap<map1> const, unitmap<map2> const) {
+constexpr auto operator==(const unitmap<map1>, const unitmap<map2>) {
   return map1{} == map2{};
 }
-constexpr auto make_unitmap = [](auto const map) { return unitmap{map}; };
-constexpr auto union_when_common = [](auto map1, auto map2) {
+constexpr auto make_unitmap = [](const auto map) { return unitmap{map}; };
+constexpr auto union_when_common = [](const auto map1, const auto map2) {
   static_assert(
       hana::intersection(map1, map2) == hana::intersection(map2, map1),
       "Dimensions must be measured in common units.");
@@ -112,7 +112,7 @@ constexpr auto union_when_common = [](auto map1, auto map2) {
 
 #define DEFOP(op)                                                              \
   template <class map1, class map2>                                            \
-  constexpr auto operator op(unitmap<map1> const x, unitmap<map2> const y) {   \
+  constexpr auto operator op(const unitmap<map1> x, const unitmap<map2> y) {   \
     return unitmap{union_when_common(x.map, y.map)};                           \
   }
 DEFALLOP;
@@ -127,14 +127,15 @@ struct unit {
   dimension_t dimension = {};
   unitmap_t unitmap = {};
   constexpr unit() = default;
-  constexpr explicit unit(decltype(dimension) const, decltype(unitmap) const) {}
+  constexpr explicit unit(const decltype(dimension), const decltype(unitmap)) {}
   constexpr static auto is_unit = true;
 };
 template <class dimension_t, class unitmap_t>
 unit(dimension_t, unitmap_t)->unit<dimension_t, unitmap_t>;
 
 template <class dim1, class dim2, class umap1, class umap2>
-constexpr auto operator==(unit<dim1, umap1> x, unit<dim2, umap2> y) {
+constexpr auto operator==(const unit<dim1, umap1> x,
+                          const unit<dim2, umap2> y) {
   return (x.dimension == y.dimension) && (x.unitmap == y.unitmap);
 }
 
@@ -151,8 +152,8 @@ constexpr auto none =
 
 #define DEFOP(op)                                                              \
   template <class dim1, class unitmap1, class dim2, class unitmap2>            \
-  constexpr auto operator op(unit::unit<dim1, unitmap1> unit1,                 \
-                             unit::unit<dim2, unitmap2> unit2) {               \
+  constexpr auto operator op(const unit::unit<dim1, unitmap1> unit1,           \
+                             const unit::unit<dim2, unitmap2> unit2) {         \
     return unit::make_unit(unit1.dimension op unit2.dimension,                 \
                            unit1.unitmap op unit2.unitmap);                    \
   }
@@ -189,8 +190,8 @@ constexpr auto make_quantity(num_t num) {
 
 #define DEFOP(op)                                                              \
   template <class num, class unit1, class unit2>                               \
-  auto operator op(quantity<unit1, num> const x,                               \
-                   quantity<unit2, num> const y) {                             \
+  auto operator op(const quantity<unit1, num> x,                               \
+                   const quantity<unit2, num> y) {                             \
     return make_quantity<decltype(x.unit() op y.unit())>(                      \
         x.number op y.number);                                                 \
   }
@@ -198,7 +199,7 @@ DEFALLOP;
 #undef DEFOP
 #undef DEFALLOP
 
-constexpr auto unit_from_tags = [](auto const dim_tag, auto const unit_tag) {
+constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
   return unit::make_unit(
       dimension::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
       base_unit::make_unitmap(
@@ -206,11 +207,11 @@ constexpr auto unit_from_tags = [](auto const dim_tag, auto const unit_tag) {
 };
 
 namespace eqns {
-auto square = [](auto const x) { return x * x; };
-auto force = [](auto const mass, auto const acceleration) {
+auto square = [](const auto x) { return x * x; };
+auto force = [](const auto mass, const auto acceleration) {
   return mass * acceleration;
 };
-auto charge = [](auto const current, auto const time) {
+auto charge = [](const auto current, const auto time) {
   return current * time;
 };
 }  // namespace eqns
@@ -237,11 +238,11 @@ using none = decltype(second{} / second{});
 
 #define DEF_SCALAR_OP(op)                                                      \
   template <class num_t, class unit_t>                                         \
-  auto operator op(quantity<unit_t, num_t> const x, num_t const k) {           \
+  auto operator op(const quantity<unit_t, num_t> x, const num_t k) {           \
     return x op make_quantity<si::none>(k);                                    \
   }                                                                            \
   template <class num_t, class unit_t>                                         \
-  auto operator op(num_t const k, quantity<unit_t, num_t> const x) {           \
+  auto operator op(const num_t k, const quantity<unit_t, num_t> x) {           \
     return x op k;                                                             \
   }
 DEF_SCALAR_OP(*)

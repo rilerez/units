@@ -3,3 +3,4 @@ make_quantity<si::meters>(0) + foot
 make_quantity<si::meters>(0) * foot
 meter + make_quantity<si::meters>(0.0)
 meter.cast<float> + make_quantity<si::meters>(0.0)
+takes_meter_float(meter)
