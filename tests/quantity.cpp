@@ -16,7 +16,7 @@ int main() {
   auto second = make_quantity<si::second>(1);
   make_quantity<si::meter>(0) * make_quantity<si::second>(1);
 
-  using feet = decltype(unit_from_tags(base_dimension::tag::length, foot_tag));
+  using feet = decltype(unit_from_tags(dimension::tag::length, foot_tag));
   auto foot = make_quantity<feet>(1);
 
   foot* second;

@@ -13,7 +13,7 @@ using namespace hana::literals;
   }                                                                            \
   constexpr auto name = hana::type<types::name>{};
 
-namespace base_dimension {
+namespace dimension {
 namespace tag {
 MAKE_TAG(length)
 MAKE_TAG(time)
@@ -23,9 +23,7 @@ MAKE_TAG(temperature)
 MAKE_TAG(amount_of_substance)
 MAKE_TAG(luminous_intensity)
 }  // namespace tag
-}  // namespace base_dimension
 
-namespace dimension {
 template <class map_t>
 struct dimension {
   const map_t map = {};
@@ -77,7 +75,8 @@ constexpr auto operator/(const dimension<map1> x, const dimension<map2> y) {
 }
 }  // namespace dimension
 
-namespace base_unit {
+namespace unit {
+
 namespace tag {
 MAKE_TAG(second)
 MAKE_TAG(meter)
@@ -117,9 +116,7 @@ constexpr auto union_when_common = [](const auto map1, const auto map2) {
   }
 DEFALLOP;
 #undef DEFOP
-}  // namespace base_unit
 
-namespace unit {
 template <class dimension_t, class unitmap_t>
 struct unit {
   static_assert(dimension_t::is_dimension);
@@ -142,12 +139,12 @@ constexpr auto operator==(const unit<dim1, umap1> x,
 constexpr auto make_unit = [](auto dimension, auto unitmap) {
   auto cleaned_unitmap =
       // left arg overwrites common values
-      base_unit::unitmap{hana::intersection(unitmap.map, dimension.map)};
+    make_unitmap(hana::intersection(unitmap.map, dimension.map));
   return unit{dimension, cleaned_unitmap};
 };
 
 constexpr auto none =
-    make_unit(dimension::none, base_unit::make_unitmap(hana::make_map()));
+    make_unit(dimension::none, make_unitmap(hana::make_map()));
 }  // namespace unit
 
 #define DEFOP(op)                                                              \
@@ -202,7 +199,7 @@ DEFALLOP;
 constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
   return unit::make_unit(
       dimension::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
-      base_unit::make_unitmap(
+      unit::make_unitmap(
           hana::make_map(hana::make_pair(dim_tag, unit_tag))));
 };
 
@@ -217,9 +214,8 @@ auto charge = [](const auto current, const auto time) {
 }  // namespace eqns
 
 namespace si {
-#define DEF_BASE_UNIT(dimension, unit)                                         \
-  using unit = decltype(                                                       \
-      unit_from_tags(base_dimension::tag::dimension, base_unit::tag::unit));
+#define DEF_BASE_UNIT(dim_, unit_)                                             \
+  using unit_ = decltype(unit_from_tags(dimension::tag::dim_, unit::tag::unit_));
 
 DEF_BASE_UNIT(time, second);
 DEF_BASE_UNIT(length, meter);
