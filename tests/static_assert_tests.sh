@@ -15,7 +15,7 @@ allpass=true
 while read -r line
 do
     ((lineno++))
-    $CXX $1 -D BAD="$line" 2> /dev/null
+    $CXX $1 -D BAD="$line" #2> /dev/null
     if [ $? != "0" ]
     then
         echo -e ${NC} "${lineno}: ${line} breaks compilation"

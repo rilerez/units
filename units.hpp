@@ -7,6 +7,8 @@ namespace units {
 namespace hana = boost::hana;
 using namespace hana::literals;
 
+#define FN(...) [&](auto _) { return __VA_ARGS__; }
+
 #define MAKE_TAG(name)                                                         \
   namespace types {                                                            \
   class name {};                                                               \
@@ -37,10 +39,8 @@ constexpr auto operator==(const dimension<map1>, const dimension<map2>) {
 }
 
 constexpr auto make_dimension = [](const auto map) {
-  return dimension{
-      hana::to_map(hana::remove_if(hana::to_tuple(map), [](auto pair) {
-        return hana::second(pair) == 0_c;
-      }))};
+  return dimension{hana::to_map(
+      hana::remove_if(hana::to_tuple(map), FN(hana::second(_) == 0_c)))};
 };
 
 constexpr auto none = make_dimension(hana::make_map());
@@ -51,19 +51,17 @@ constexpr auto operator+(const dimension<map1> x, const dimension<map2>) {
   return x;
 }
 template <class map1, class map2>
-constexpr auto operator-(const dimension<map1> x, const dimension<map2> y) {
+constexpr auto operator-(const dimension<map1> x, const dimension<map2>) {
   static_assert(map1{} == map2{}, "You cannot subtract different dimensions");
   return x;
 }
 
 constexpr auto merge = [](const auto merger, const auto x, const auto y) {
   auto shared_keys = hana::keys(hana::intersection(x, y));
-  auto merged_on_common =
-      hana::to_map(hana::transform(shared_keys, [&](auto key) {
-        return hana::make_pair(key, merger(x[key], y[key]));
-      }));
+  auto merged_on_common = hana::to_map(
+      hana::transform(shared_keys, FN(hana::make_pair(_, merger(x[_], y[_])))));
   return hana::union_(hana::union_(x, y), merged_on_common);
-};
+};  // namespace dimension
 
 template <class map1, class map2>
 constexpr auto operator*(const dimension<map1> x, const dimension<map2> y) {
@@ -124,7 +122,7 @@ struct unit {
   dimension_t dimension = {};
   unitmap_t unitmap = {};
   constexpr unit() = default;
-  constexpr explicit unit(const decltype(dimension), const decltype(unitmap)) {}
+  constexpr explicit unit(const dimension_t, const unitmap_t) {}
   constexpr static auto is_unit = true;
 };
 template <class dimension_t, class unitmap_t>
@@ -139,7 +137,7 @@ constexpr auto operator==(const unit<dim1, umap1> x,
 constexpr auto make_unit = [](auto dimension, auto unitmap) {
   auto cleaned_unitmap =
       // left arg overwrites common values
-    make_unitmap(hana::intersection(unitmap.map, dimension.map));
+      make_unitmap(hana::intersection(unitmap.map, dimension.map));
   return unit{dimension, cleaned_unitmap};
 };
 
@@ -168,7 +166,7 @@ struct quantity {
   constexpr quantity(const quantity<unit_t2, number_t>&) {
     static_assert(unit_t2{} == unit_t{}, "Unit mismatch.");
   }
-  constexpr quantity(unit_t, number_t number) : quantity(number) {}
+  constexpr explicit quantity(unit_t, number_t number) : quantity(number) {}
 
   template <class num_t2>
   auto cast() const {
@@ -199,8 +197,7 @@ DEFALLOP;
 constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
   return unit::make_unit(
       dimension::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
-      unit::make_unitmap(
-          hana::make_map(hana::make_pair(dim_tag, unit_tag))));
+      unit::make_unitmap(hana::make_map(hana::make_pair(dim_tag, unit_tag))));
 };
 
 namespace eqns {
@@ -215,7 +212,8 @@ auto charge = [](const auto current, const auto time) {
 
 namespace si {
 #define DEF_BASE_UNIT(dim_, unit_)                                             \
-  using unit_ = decltype(unit_from_tags(dimension::tag::dim_, unit::tag::unit_));
+  using unit_ =                                                                \
+      decltype(unit_from_tags(dimension::tag::dim_, unit::tag::unit_));
 
 DEF_BASE_UNIT(time, second);
 DEF_BASE_UNIT(length, meter);
