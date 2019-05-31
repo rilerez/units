@@ -7,30 +7,22 @@ namespace units {
 namespace hana = boost::hana;
 using namespace hana::literals;
 
+/**
+ * Defines a lambda that takes _ and returns the wrapped expression
+ */
 #define FN(...) [&](auto _) { return __VA_ARGS__; }
 
-#define MAKE_TAG(name)                                                         \
-  namespace types {                                                            \
-  class name {};                                                               \
-  }                                                                            \
-  constexpr auto name = hana::type<types::name>{};
-
-namespace dimension {
-namespace tag {
-MAKE_TAG(length)
-MAKE_TAG(time)
-MAKE_TAG(mass)
-MAKE_TAG(current)
-MAKE_TAG(temperature)
-MAKE_TAG(amount_of_substance)
-MAKE_TAG(luminous_intensity)
-}  // namespace tag
-
+namespace impl {
+/**
+ * A Dimension is a product of powers of _base dimensions_. For example,
+ * meters per second squared is (meter^1 * second^{-2}). Here meter and
+ * second are base dimensions
+ */
 template <class map_t>
 struct dimension {
-  const map_t map = {};
+  const map_t powers = {};
   constexpr dimension() = default;
-  explicit constexpr dimension(map_t map) : map{map} {}
+  explicit constexpr dimension(map_t powers) : powers{powers} {}
   constexpr static auto is_dimension = true;
 };
 template <class map1, class map2>
@@ -38,12 +30,13 @@ constexpr auto operator==(const dimension<map1>, const dimension<map2>) {
   return map1{} == map2{};
 }
 
+/**
+ * Constructs dimensions performing type inference given a map
+ */
 constexpr auto make_dimension = [](const auto map) {
   return dimension{hana::to_map(
       hana::remove_if(hana::to_tuple(map), FN(hana::second(_) == 0_c)))};
 };
-
-constexpr auto none = make_dimension(hana::make_map());
 
 template <class map1, class map2>
 constexpr auto operator+(const dimension<map1> x, const dimension<map2>) {
@@ -56,6 +49,9 @@ constexpr auto operator-(const dimension<map1> x, const dimension<map2>) {
   return x;
 }
 
+/**
+ *
+ */
 constexpr auto merge = [](const auto merger, const auto x, const auto y) {
   auto shared_keys = hana::keys(hana::intersection(x, y));
   auto merged_on_common = hana::to_map(
@@ -65,39 +61,25 @@ constexpr auto merge = [](const auto merger, const auto x, const auto y) {
 
 template <class map1, class map2>
 constexpr auto operator*(const dimension<map1> x, const dimension<map2> y) {
-  return make_dimension(merge(std::plus{}, x.map, y.map));
+  return make_dimension(merge(std::plus{}, x.powers, y.powers));
 }
 template <class map1, class map2>
 constexpr auto operator/(const dimension<map1> x, const dimension<map2> y) {
-  return make_dimension(merge(std::minus{}, x.map, y.map));
+  return make_dimension(merge(std::minus{}, x.powers, y.powers));
 }
-}  // namespace dimension
-
-namespace unit {
-
-namespace tag {
-MAKE_TAG(second)
-MAKE_TAG(meter)
-MAKE_TAG(kilogram)
-MAKE_TAG(ampere)
-MAKE_TAG(kelvin)
-MAKE_TAG(mole)
-MAKE_TAG(candela)
-}  // namespace tag
-#undef MAKE_TAG
 
 template <class map_t>
-struct unitmap {
+struct dim2unit {
   map_t map;
-  constexpr unitmap() = default;
-  constexpr explicit unitmap(const map_t map) : map{map} {}
-  static auto constexpr is_unitmap = true;
+  constexpr dim2unit() = default;
+  constexpr explicit dim2unit(const map_t map) : map{map} {}
+  static auto constexpr is_dim2unit = true;
 };
 template <class map1, class map2>
-constexpr auto operator==(const unitmap<map1>, const unitmap<map2>) {
+constexpr auto operator==(const dim2unit<map1>, const dim2unit<map2>) {
   return map1{} == map2{};
 }
-constexpr auto make_unitmap = [](const auto map) { return unitmap{map}; };
+constexpr auto make_dim2unit = [](const auto map) { return dim2unit{map}; };
 constexpr auto union_when_common = [](const auto map1, const auto map2) {
   static_assert(
       hana::intersection(map1, map2) == hana::intersection(map2, map1),
@@ -109,51 +91,48 @@ constexpr auto union_when_common = [](const auto map1, const auto map2) {
 
 #define DEFOP(op)                                                              \
   template <class map1, class map2>                                            \
-  constexpr auto operator op(const unitmap<map1> x, const unitmap<map2> y) {   \
-    return unitmap{union_when_common(x.map, y.map)};                           \
+  constexpr auto operator op(const dim2unit<map1> x, const dim2unit<map2> y) { \
+    return impl::dim2unit{union_when_common(x.map, y.map)};                    \
   }
 DEFALLOP;
 #undef DEFOP
 
-template <class dimension_t, class unitmap_t>
+template <class dimension_t, class dim2unit_t>
 struct unit {
   static_assert(dimension_t::is_dimension);
-  static_assert(unitmap_t::is_unitmap);
+  static_assert(dim2unit_t::is_dim2unit);
   dimension_t dimension = {};
-  unitmap_t unitmap = {};
+  dim2unit_t dim2unit = {};
   constexpr unit() = default;
-  constexpr explicit unit(const dimension_t, const unitmap_t) {}
+  constexpr explicit unit(const dimension_t, const dim2unit_t) {}
   constexpr static auto is_unit = true;
 };
-template <class dimension_t, class unitmap_t>
-unit(dimension_t, unitmap_t)->unit<dimension_t, unitmap_t>;
+template <class dimension_t, class dim2unit_t>
+unit(dimension_t, dim2unit_t)->unit<dimension_t, dim2unit_t>;
 
 template <class dim1, class dim2, class umap1, class umap2>
 constexpr auto operator==(const unit<dim1, umap1> x,
                           const unit<dim2, umap2> y) {
-  return (x.dimension == y.dimension) && (x.unitmap == y.unitmap);
+  return (x.dimension == y.dimension) && (x.dim2unit == y.dim2unit);
 }
 
-constexpr auto make_unit = [](auto dimension, auto unitmap) {
-  auto cleaned_unitmap =
+constexpr auto make_unit = [](auto dimension, auto dim2unit) {
+  auto cleaned_dim2unit =
       // left arg overwrites common values
-      make_unitmap(hana::intersection(unitmap.map, dimension.map));
-  return unit{dimension, cleaned_unitmap};
+      make_dim2unit(hana::intersection(dim2unit.map, dimension.powers));
+  return unit{dimension, cleaned_dim2unit};
 };
 
-constexpr auto none =
-    make_unit(dimension::none, make_unitmap(hana::make_map()));
-}  // namespace unit
-
 #define DEFOP(op)                                                              \
-  template <class dim1, class unitmap1, class dim2, class unitmap2>            \
-  constexpr auto operator op(const unit::unit<dim1, unitmap1> unit1,           \
-                             const unit::unit<dim2, unitmap2> unit2) {         \
-    return unit::make_unit(unit1.dimension op unit2.dimension,                 \
-                           unit1.unitmap op unit2.unitmap);                    \
+  template <class dim1, class dim2unit1, class dim2, class dim2unit2>          \
+  constexpr auto operator op(const unit<dim1, dim2unit1> unit1,                \
+                             const unit<dim2, dim2unit2> unit2) {              \
+    return make_unit(unit1.dimension op unit2.dimension,                       \
+                     unit1.dim2unit op unit2.dim2unit);                        \
   }
 DEFALLOP;
 #undef DEFOP
+};  // namespace impl
 
 template <class unit_t, class number_t>
 struct quantity {
@@ -195,9 +174,9 @@ DEFALLOP;
 #undef DEFALLOP
 
 constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
-  return unit::make_unit(
-      dimension::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
-      unit::make_unitmap(hana::make_map(hana::make_pair(dim_tag, unit_tag))));
+  return impl::make_unit(
+      impl::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
+      impl::make_dim2unit(hana::make_map(hana::make_pair(dim_tag, unit_tag))));
 };
 
 namespace eqns {
@@ -210,10 +189,43 @@ auto charge = [](const auto current, const auto time) {
 };
 }  // namespace eqns
 
+/**
+ * Tags are a way to encode a symbol in a way boost::hana can understand and
+ * hash. We define a class, and then take the hana::type of it. This way we
+ * can ensure two different tags are not equal and we can use them as keys
+ *
+ * This macro defines tags given their name.
+ * WARNING - it pollutes a nested namespace called types.
+ */
+#define MAKE_TAG(name)                                                         \
+  namespace types {                                                            \
+  class name {};                                                               \
+  }                                                                            \
+  constexpr auto name = hana::type<types::name>{};
+namespace tag {
+MAKE_TAG(length)
+MAKE_TAG(time)
+MAKE_TAG(mass)
+MAKE_TAG(current)
+MAKE_TAG(temperature)
+MAKE_TAG(amount_of_substance)
+MAKE_TAG(luminous_intensity)
+}  // namespace tag
+
 namespace si {
+namespace tag {
+MAKE_TAG(second)
+MAKE_TAG(meter)
+MAKE_TAG(kilogram)
+MAKE_TAG(ampere)
+MAKE_TAG(kelvin)
+MAKE_TAG(mole)
+MAKE_TAG(candela)
+}  // namespace tag
+#undef MAKE_TAG
+
 #define DEF_BASE_UNIT(dim_, unit_)                                             \
-  using unit_ =                                                                \
-      decltype(unit_from_tags(dimension::tag::dim_, unit::tag::unit_));
+  using unit_ = decltype(unit_from_tags(units::tag::dim_, si::tag::unit_));
 
 DEF_BASE_UNIT(time, second);
 DEF_BASE_UNIT(length, meter);
@@ -242,4 +254,5 @@ using none = decltype(second{} / second{});
 DEF_SCALAR_OP(*)
 DEF_SCALAR_OP(/)
 #undef DEF_SCALAR_OP
+#undef MAKE_TAG
 }  // namespace units
