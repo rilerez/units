@@ -38,13 +38,17 @@ constexpr auto make_dimension = [](const auto map) {
 };
 
 template <class dim_powers1, class dim_powers2>
-constexpr auto operator+(const dimension<dim_powers1> x, const dimension<dim_powers2>) {
-  static_assert(dim_powers1{} == dim_powers2{}, "You cannot add different dimensions.");
+constexpr auto operator+(const dimension<dim_powers1> x,
+                         const dimension<dim_powers2>) {
+  static_assert(dim_powers1{} == dim_powers2{},
+                "You cannot add different dimensions.");
   return x;
 }
 template <class dim_powers1, class dim_powers2>
-constexpr auto operator-(const dimension<dim_powers1> x, const dimension<dim_powers2>) {
-  static_assert(dim_powers1{} == dim_powers2{}, "You cannot subtract different dimensions");
+constexpr auto operator-(const dimension<dim_powers1> x,
+                         const dimension<dim_powers2>) {
+  static_assert(dim_powers1{} == dim_powers2{},
+                "You cannot subtract different dimensions");
   return x;
 }
 
@@ -60,11 +64,13 @@ constexpr auto merge = [](const auto merger, const auto x, const auto y) {
 };  // namespace dimension
 
 template <class dim_powers1, class dim_powers2>
-constexpr auto operator*(const dimension<dim_powers1> x, const dimension<dim_powers2> y) {
+constexpr auto operator*(const dimension<dim_powers1> x,
+                         const dimension<dim_powers2> y) {
   return make_dimension(merge(std::plus{}, x.powers, y.powers));
 }
 template <class dim_powers1, class dim_powers2>
-constexpr auto operator/(const dimension<dim_powers1> x, const dimension<dim_powers2> y) {
+constexpr auto operator/(const dimension<dim_powers1> x,
+                         const dimension<dim_powers2> y) {
   return make_dimension(merge(std::minus{}, x.powers, y.powers));
 }
 
@@ -79,7 +85,9 @@ template <class map1, class map2>
 constexpr auto operator==(const dim2unit<map1>, const dim2unit<map2>) {
   return map1{} == map2{};
 }
-constexpr auto make_dim2unit = FN(dim2unit{_});
+constexpr auto make_dim2unit = [](auto const unitmap) {
+  return dim2unit{unitmap};
+};
 constexpr auto union_when_common = [](const auto map1, const auto map2) {
   static_assert(
       hana::intersection(map1, map2) == hana::intersection(map2, map1),
@@ -147,6 +155,7 @@ struct quantity {
   constexpr explicit quantity(number_t number) : number{number} {}
   constexpr static auto is_quantity = true;
 
+  template<class unit_t2>
   constexpr quantity(const quantity<unit_t2, number_t>&) {
     static_assert(unit_t2{} == unit_t{}, "Unit mismatch.");
   }

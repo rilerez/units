@@ -1,4 +1,5 @@
 #include "../units.hpp"
+#include <assert.h>
 
 #ifndef BAD
 #  define BAD
