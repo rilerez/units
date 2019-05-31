@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <boost/hana.hpp>
 #include <functional>
 #include <type_traits>
@@ -38,33 +37,34 @@ constexpr auto make_dimension = [](const auto map) {
       hana::remove_if(hana::to_tuple(map), FN(hana::second(_) == 0_c)))};
 };
 
-template <class map1, class map2>
-constexpr auto operator+(const dimension<map1> x, const dimension<map2>) {
-  static_assert(map1{} == map2{}, "You cannot add different dimensions.");
+template <class dim_powers1, class dim_powers2>
+constexpr auto operator+(const dimension<dim_powers1> x, const dimension<dim_powers2>) {
+  static_assert(dim_powers1{} == dim_powers2{}, "You cannot add different dimensions.");
   return x;
 }
-template <class map1, class map2>
-constexpr auto operator-(const dimension<map1> x, const dimension<map2>) {
-  static_assert(map1{} == map2{}, "You cannot subtract different dimensions");
+template <class dim_powers1, class dim_powers2>
+constexpr auto operator-(const dimension<dim_powers1> x, const dimension<dim_powers2>) {
+  static_assert(dim_powers1{} == dim_powers2{}, "You cannot subtract different dimensions");
   return x;
 }
 
 /**
- *
+ * Merges hana maps by calling merger on values of common keys of x and y
  */
 constexpr auto merge = [](const auto merger, const auto x, const auto y) {
   auto shared_keys = hana::keys(hana::intersection(x, y));
   auto merged_on_common = hana::to_map(
       hana::transform(shared_keys, FN(hana::make_pair(_, merger(x[_], y[_])))));
+  // right argument overrides keys for union
   return hana::union_(hana::union_(x, y), merged_on_common);
 };  // namespace dimension
 
-template <class map1, class map2>
-constexpr auto operator*(const dimension<map1> x, const dimension<map2> y) {
+template <class dim_powers1, class dim_powers2>
+constexpr auto operator*(const dimension<dim_powers1> x, const dimension<dim_powers2> y) {
   return make_dimension(merge(std::plus{}, x.powers, y.powers));
 }
-template <class map1, class map2>
-constexpr auto operator/(const dimension<map1> x, const dimension<map2> y) {
+template <class dim_powers1, class dim_powers2>
+constexpr auto operator/(const dimension<dim_powers1> x, const dimension<dim_powers2> y) {
   return make_dimension(merge(std::minus{}, x.powers, y.powers));
 }
 
@@ -79,7 +79,7 @@ template <class map1, class map2>
 constexpr auto operator==(const dim2unit<map1>, const dim2unit<map2>) {
   return map1{} == map2{};
 }
-constexpr auto make_dim2unit = [](const auto map) { return dim2unit{map}; };
+constexpr auto make_dim2unit = FN(dim2unit{_});
 constexpr auto union_when_common = [](const auto map1, const auto map2) {
   static_assert(
       hana::intersection(map1, map2) == hana::intersection(map2, map1),
@@ -134,6 +134,11 @@ DEFALLOP;
 #undef DEFOP
 };  // namespace impl
 
+/**
+ * A quantity wraps a numeric type with strongly typed information about its
+ * dimension. Operators +,-,*,/ are overloaded to ensure dimensions and numeric
+ * types match.
+ */
 template <class unit_t, class number_t>
 struct quantity {
   static_assert(unit_t::is_unit);
@@ -141,12 +146,17 @@ struct quantity {
   constexpr unit_t unit() const { return {}; }
   constexpr explicit quantity(number_t number) : number{number} {}
   constexpr static auto is_quantity = true;
-  template <class unit_t2>
+
   constexpr quantity(const quantity<unit_t2, number_t>&) {
     static_assert(unit_t2{} == unit_t{}, "Unit mismatch.");
   }
   constexpr explicit quantity(unit_t, number_t number) : quantity(number) {}
 
+  /**
+   * Casts the numeric part of the quantity:
+   * (make_quantity<si::meter>(3)).cast<float>() ====
+   * make_quantity<si::meter>(3.0f)
+   */
   template <class num_t2>
   auto cast() const {
     return quantity<unit_t, num_t2>{static_cast<num_t2>(number)};
@@ -157,6 +167,10 @@ struct quantity {
 template <class unit_t, class number_t>
 quantity(unit_t, number_t)->quantity<unit_t, number_t>;
 
+/**
+ * Constructs a quantity given its unit as a template argument and the number
+ * as its function argument.
+ */
 template <class unit_t, class num_t>
 constexpr auto make_quantity(num_t num) {
   return quantity<unit_t, num_t>{num};
@@ -173,6 +187,10 @@ DEFALLOP;
 #undef DEFOP
 #undef DEFALLOP
 
+/**
+ * Makes an instance of a unit given a dimension tag and a unit tag. Tags must
+ * be hashable by boost::hana
+ */
 constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
   return impl::make_unit(
       impl::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
@@ -202,7 +220,10 @@ auto charge = [](const auto current, const auto time) {
   class name {};                                                               \
   }                                                                            \
   constexpr auto name = hana::type<types::name>{};
+
 namespace tag {
+// namespace types { class length {}; }
+// constexpr auto length = hana::type<types::length>{};
 MAKE_TAG(length)
 MAKE_TAG(time)
 MAKE_TAG(mass)
