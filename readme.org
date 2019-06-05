@@ -1,8 +1,9 @@
+#+OPTIONS: tex:t
 * what
   This library provides strong types for storing quantities with units. Unit errors, such as adding feet to seconds, fail to compile. This is done with no runtime cost.
 * goals
 ** ease of reading
-   I tried to keep the metaprogramming as clear as possible.
+   I tried to keep the metaprogramming as clear and concise as possible using [[https://boostorg.github.io/hana/][boost::hana]].
 ** anticipating constexpr STL
    Once most of STL is constexpr we can use standard containers to handle dimension calculations. As boost::hana strongly resembles STL, migrating to constexpr STL will be reasonable (I hope).
 * tutorial
@@ -17,18 +18,40 @@
    auto error = half_a_meter + three_meters;  // compilation error
    // you need to cast
    auto ok = half_a_meter + three_meters.cast<double>()
+   // define a double storing seconds
+   auto four_seconds = units::make_quantity<units::si::second>(4.0);
+   // cannot add mismatched types
+   auto error2 = three_meters + four_seconds; // compilation error
+   // you can multiply or divide them, though
+   auto ok2 = three_meters/four_seconds;
  #+END_SRC
 ** quantity types:
-   We used type inference in the above examples to determine the type of the quantity. Here is an example of how to spell it explicitly. This example defines a function that calculates the position of an object in free fall at a given time with given initial position, velocity, and gravity.
+   This example shows how to spell out types explicitly. It encodes the formula
+$y(t) = y_0+v_0t - \frac12 (10)t^2$
 #+BEGIN_SRC C++
   using namespace units;
   using namespace units::si;
 
+  constexpr auto square = [](auto x) { return x * x; };
+
   auto freefall_pos(quantity<second, double> time,
                     quantity<meter, double> init_pos,
-                    quantity<decltype(meter{} / second{}), double> init_vel,
-                    quantity<decltype(meter{} / second{}), double> gravity) {
-    return init_dist + init_vel * time - 0.5 * gravity * eqn::square(time);
+                    quantity<decltype(meter{} / second{}), double> init_vel) {
+    auto gravity = quantity{meter{} / square(second{}), 10.0};
+    return init_dist + init_vel * time - 0.5 * gravity * square(time);
   }
 #+END_SRC
-* TODO defining your own units
+Trying to call this function with the wrong units or with types other than double will fail to compile.
+*  defining your own units
+To define units, you need a unit tag and a dimension tag. (I'm open to feedback on better names for these). The process of creating both tags is essentially the same. Here's a demonstration:
+#+BEGIN_SRC C++
+  class money_class {};
+  auto money_tag = boost::hana::type<money_class>{}; // dimension tag
+
+  class dollar_class{};
+  auto dollar_tag = boost::hana::type<dollar_class>{}; // unit tag
+
+  using dollar = decltype(units::unit_from_tag(money_tag,dollar_tag));
+
+  auto jackpot = make_quantity<dollar>(999999999);
+#+END_SRC
