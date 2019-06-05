@@ -1,0 +1,34 @@
+* what
+  This library provides strong types for storing quantities with units. Unit errors, such as adding feet to seconds, fail to compile. This is done with no runtime cost.
+* goals
+** ease of reading
+   I tried to keep the metaprogramming as clear as possible.
+** anticipating constexpr STL
+   Once most of STL is constexpr we can use standard containers to handle dimension calculations. As boost::hana strongly resembles STL, migrating to constexpr STL will be reasonable (I hope).
+* tutorial
+** make_quantity:
+   Creates a quantity. Infers the numerical type from input. Quantities can be added, subtracted, multiplied, and divided.
+ #+BEGIN_SRC C++
+   // define an int storing meters
+   auto three_meters = units::make_quantity<units::si::meter>(3);
+   // define a double storing meters
+   auto half_a_meter = units::make_quantity<units::si::meter>(0.5);
+   // can't add different numeric types
+   auto error = half_a_meter + three_meters;  // compilation error
+   // you need to cast
+   auto ok = half_a_meter + three_meters.cast<double>()
+ #+END_SRC
+** quantity types:
+   We used type inference in the above examples to determine the type of the quantity. Here is an example of how to spell it explicitly. This example defines a function that calculates the position of an object in free fall at a given time with given initial position, velocity, and gravity.
+#+BEGIN_SRC C++
+  using namespace units;
+  using namespace units::si;
+
+  auto freefall_pos(quantity<second, double> time,
+                    quantity<meter, double> init_pos,
+                    quantity<decltype(meter{} / second{}), double> init_vel,
+                    quantity<decltype(meter{} / second{}), double> gravity) {
+    return init_dist + init_vel * time - 0.5 * gravity * eqn::square(time);
+  }
+#+END_SRC
+* TODO defining your own units
