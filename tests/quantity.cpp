@@ -29,7 +29,7 @@ int main() {
   BAD;
 
   assert((foot + foot).number == 2);
-  assert(((meter + meter) * meter) == 2* meter * meter);
+  assert(((meter + meter) * meter) == 2*meter * meter);
 
   printf("all runtime tests pass\n");
   return 0;

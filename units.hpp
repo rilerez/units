@@ -11,9 +11,9 @@ using namespace hana::literals;
  */
 #define FN(...) [&](auto _) { return __VA_ARGS__; }
 
-  /**
-   * This is all implementation details and not part of the external interface
-   */
+/**
+ * This is all implementation details and not part of the external interface
+ */
 namespace impl {
 /**
  * A Dimension is a product of powers of _base dimensions_. For example,
@@ -61,7 +61,9 @@ constexpr auto operator-(const dimension<dim_powers1> x,
  */
 constexpr auto merge = [](const auto merger, const auto x, const auto y) {
   auto shared_keys = hana::keys(hana::intersection(x, y));
-  auto merge_keyval = [&](auto key)(hana::make_pair(key, merger(x[key], y[key])));
+  auto merge_keyval = [&](auto key) {
+    return hana::make_pair(key, merger(x[key], y[key]));
+  };
   auto merged_on_common =
       hana::to_map(hana::transform(shared_keys, merge_keyval));
   // right argument overrides keys for union
@@ -160,9 +162,12 @@ struct quantity {
   constexpr explicit quantity(number_t number) : number{number} {}
   constexpr static auto is_quantity = true;
 
-  template <class unit_t2>
-  constexpr quantity(const quantity<unit_t2, number_t>&) {
-    static_assert(unit_t2{} == unit_t{}, "Unit mismatch.");
+  template <class unit_t2, class number_t2>
+  constexpr quantity(const quantity<unit_t2, number_t2>&) {
+    static_assert(unit_t{} == unit_t2{}, "Unit mismatch.");
+    static_assert(std::is_same_v<number_t,number_t2>,
+                  "Numeric type mismatch. If you really wanted to mix types, "
+                  "call cast");
   }
   constexpr quantity(unit_t, number_t number) : quantity(number) {}
 
@@ -176,7 +181,30 @@ struct quantity {
     return quantity<unit_t, num_t2>{static_cast<num_t2>(number)};
   }
 
-  constexpr auto operator==(quantity other) { return number == other.number; }
+  constexpr auto operator==(const quantity& other) {
+    return number == other.number;
+  }
+
+#define DEFOP(op)                                                              \
+  quantity& operator op##=(const quantity& summand) {                          \
+    return *this = (*this op summand);                                         \
+  }
+  DEFOP(+)
+  DEFOP(-)
+
+  quantity& operator-() {
+    auto copy = *this;
+    copy.number = -copy.number;
+    return copy;
+  }
+#undef DEFOP
+#define DEFOP(op)                                                              \
+  quantity& operator op##=(const number_t& multiplicand) {                     \
+    number op## = multiplicand;                                                \
+    return *this;                                                              \
+  }
+  DEFOP(*) DEFOP(/)
+#undef DEFOP
 };
 template <class unit_t, class number_t>
 quantity(unit_t, number_t)->quantity<unit_t, number_t>;
@@ -191,9 +219,13 @@ constexpr auto make_quantity(num_t num) {
 }
 
 #define DEFOP(op)                                                              \
-  template <class num, class unit1, class unit2>                               \
-  auto operator op(const quantity<unit1, num> x,                               \
-                   const quantity<unit2, num> y) {                             \
+  template <class num1, class num2, class unit1, class unit2>                  \
+  auto operator op(const quantity<unit1, num1> x,                              \
+                   const quantity<unit2, num2> y) {                            \
+    static_assert(                                                             \
+        std::is_same_v<num1, num2>,                                            \
+        "Numeric types must be the same. If you really want to operate on "    \
+        "quantities with different numeric types, call cast.");                \
     return make_quantity<decltype(x.unit() op y.unit())>(                      \
         x.number op y.number);                                                 \
   }
@@ -279,14 +311,14 @@ using none = decltype(second{} / second{});
 }  // namespace si
 
 #define DEF_SCALAR_OP(op)                                                      \
-  template <class num_t, class unit_t>                                         \
-  auto operator op(const quantity<unit_t, num_t> x, const num_t k) {           \
+  template <class num_t, class num_t2, class unit_t>                           \
+  auto operator op(const quantity<unit_t, num_t> x, const num_t2 k) {          \
     return x op make_quantity<si::none>(k);                                    \
   }                                                                            \
-  template <class num_t, class unit_t>                                         \
-  auto operator op(const num_t k, const quantity<unit_t, num_t> x) {           \
+  template <class num_t, class num_t2, class unit_t>                           \
+  auto operator op(const num_t2 k, const quantity<unit_t, num_t> x) {          \
     /* don't assume commutativity */                                           \
-    return make_quantity<si::none>(k) op k;                                    \
+    return make_quantity<si::none>(k) op x;                                    \
   }
 DEF_SCALAR_OP(*)
 DEF_SCALAR_OP(/)
