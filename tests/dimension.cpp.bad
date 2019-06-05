@@ -1,4 +1,0 @@
-auto GENSYM = length+area;
-auto GENSYM = (length-length) + (area-area);
-auto GENSYM = length-area;
-auto GENSYM = length+ time;

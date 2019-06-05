@@ -11,6 +11,9 @@ using namespace hana::literals;
  */
 #define FN(...) [&](auto _) { return __VA_ARGS__; }
 
+  /**
+   * This is all implementation details and not part of the external interface
+   */
 namespace impl {
 /**
  * A Dimension is a product of powers of _base dimensions_. For example,
@@ -33,8 +36,9 @@ constexpr auto operator==(const dimension<map1>, const dimension<map2>) {
  * Constructs dimensions performing type inference given a map
  */
 constexpr auto make_dimension = [](const auto map) {
-  return dimension{hana::to_map(
-      hana::remove_if(hana::to_tuple(map), FN(hana::second(_) == 0_c)))};
+  auto is_pow_zero = FN(hana::second(_) == 0_c);
+  return dimension{
+      hana::to_map(hana::remove_if(hana::to_tuple(map), is_pow_zero))};
 };
 
 template <class dim_powers1, class dim_powers2>
@@ -57,8 +61,9 @@ constexpr auto operator-(const dimension<dim_powers1> x,
  */
 constexpr auto merge = [](const auto merger, const auto x, const auto y) {
   auto shared_keys = hana::keys(hana::intersection(x, y));
-  auto merged_on_common = hana::to_map(
-      hana::transform(shared_keys, FN(hana::make_pair(_, merger(x[_], y[_])))));
+  auto merge_keyval = [&](auto key)(hana::make_pair(key, merger(x[key], y[key])));
+  auto merged_on_common =
+      hana::to_map(hana::transform(shared_keys, merge_keyval));
   // right argument overrides keys for union
   return hana::union_(hana::union_(x, y), merged_on_common);
 };  // namespace dimension
@@ -155,11 +160,11 @@ struct quantity {
   constexpr explicit quantity(number_t number) : number{number} {}
   constexpr static auto is_quantity = true;
 
-  template<class unit_t2>
+  template <class unit_t2>
   constexpr quantity(const quantity<unit_t2, number_t>&) {
     static_assert(unit_t2{} == unit_t{}, "Unit mismatch.");
   }
-  constexpr explicit quantity(unit_t, number_t number) : quantity(number) {}
+  constexpr quantity(unit_t, number_t number) : quantity(number) {}
 
   /**
    * Casts the numeric part of the quantity:
@@ -201,9 +206,10 @@ DEFALLOP;
  * be hashable by boost::hana
  */
 constexpr auto unit_from_tags = [](const auto dim_tag, const auto unit_tag) {
-  return impl::make_unit(
-      impl::make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
-      impl::make_dim2unit(hana::make_map(hana::make_pair(dim_tag, unit_tag))));
+  using namespace impl;
+  return make_unit(
+      make_dimension(hana::make_map(hana::make_pair(dim_tag, 1_c))),
+      make_dim2unit(hana::make_map(hana::make_pair(dim_tag, unit_tag))));
 };
 
 namespace eqns {
@@ -279,7 +285,8 @@ using none = decltype(second{} / second{});
   }                                                                            \
   template <class num_t, class unit_t>                                         \
   auto operator op(const num_t k, const quantity<unit_t, num_t> x) {           \
-    return x op k;                                                             \
+    /* don't assume commutativity */                                           \
+    return make_quantity<si::none>(k) op k;                                    \
   }
 DEF_SCALAR_OP(*)
 DEF_SCALAR_OP(/)
